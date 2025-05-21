@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Structure Template</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font */
+            margin: 0;
+            background-color: #f8f8f8;
+        }
+        /* Base styling for any folder entry */
+        .folder-entry {
+            margin-bottom: 5px; /* Spacing between folder entries */
+        }
+
+        .folder-title {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            border-radius: 8px; /* Rounded corners */
+            transition: background-color 0.2s ease-in-out;
+            user-select: none; /* Prevent text selection on click */
+        }
+        .folder-title:hover {
+            background-color: #e0e0e0;
+        }
+        .folder-title .icon {
+            margin-right: 8px;
+            color: #666; /* Default icon color */
+        }
+        .folder-title.expanded::before {
+            transform: rotate(90deg); /* Rotate to point down when expanded */
+        }
+        /* Overriding default arrow with Font Awesome folder icon */
+        .folder-title::before {
+            content: none; /* Remove default arrow */
+        }
+        .folder-title .arrow-icon {
+            margin-right: 8px;
+            transition: transform 0.2s ease-in-out;
+        }
+        .folder-title.expanded .arrow-icon {
+            transform: rotate(90deg);
+        }
+
+        /* Container for files and subfolders within a folder */
+        .folder-content {
+            display: none; /* Hidden by default */
+            padding-left: 20px; /* Indent content */
+            margin-top: 5px; /* Space between title and content */
+        }
+        .folder-content.expanded {
+            display: block; /* Show when expanded */
+        }
+        .link-item {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .link-item .icon {
+            margin-right: 8px;
+            color: #007bff; /* Link icon color */
+        }
+        .link-item .icon.video { color: #dc3545; } /* Red for video */
+        .link-item .icon.html { color: #28a745; } /* Green for HTML */
+        .link-item .icon.pdf { color: #6f42c1; } /* Distinct purple for PDF */
+
+
+        .content-wrapper {
+            width: 100%;
+            min-height: 100vh; /* Use min-height for better content flow */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 20px; /* Add padding to the wrapper */
+            box-sizing: border-box; /* Include padding in element's total width and height */
+        }
+        #content {
+            flex-grow: 1;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+            overflow-y: auto;
+            background-color: #ffffff;
+            border-radius: 12px; /* More rounded corners for the main content area */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        }
+        /* New styling for the header container */
+        .header-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e6f7ff;
+            border: 1px solid #b3e0ff;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column; /* Stack button and message */
+            align-items: center; /* Center horizontally */
+            gap: 8px; /* Space between elements */
+        }
+        .header-container .status-message { /* Styling for the status message within the header */
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            width: 100%; /* Take full width */
+        }
+        .header-container .status-message.error { /* Styling for error messages within this container */
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 8px;
+            border-radius: 5px;
+            color: #dc3545;
+        }
+        /* Styling for the load button */
+        #loadJsonButton {
+            background-color: #007bff;
+            color: white;
+            padding: 8px 12px; /* Smaller padding for a compact button */
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 0.9rem; /* Smaller font size */
+        }
+        #loadJsonButton:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="header-container">
+            <input type="file" id="jsonFileInput" accept=".json" class="hidden">
+            <button id="loadJsonButton">Load JSON File</button>
+            <div id="statusMessage" class="status-message">No content loaded.</div>
+        </div>
+        <div id="content">
+            </div>
+    </div>
+    <script>
+        const contentDiv = document.getElementById("content");
+        const jsonFileInput = document.getElementById("jsonFileInput");
+        const loadJsonButton = document.getElementById("loadJsonButton");
+        const statusMessageDiv = document.getElementById("statusMessage");
+
+        /**
+         * Displays a status or error message to the user.
+         * @param {string} message - The message to display.
+         * @param {boolean} isError - If true, styles the message as an error.
+         */
+        function displayStatusMessage(message, isError = false) {
+            statusMessageDiv.textContent = message;
+            statusMessageDiv.style.display = 'block'; // Ensure it's visible
+            statusMessageDiv.classList.remove('error'); // Remove previous error state
+            if (isError) {
+                statusMessageDiv.classList.add('error');
+            } else {
+                statusMessageDiv.classList.remove('bg-f8d7da', 'border-f5c6cb'); // Remove error background/border
+                statusMessageDiv.classList.add('bg-e6f7ff', 'border-b3e0ff'); // Add default background/border
+                statusMessageDiv.style.color = '#333'; // Default text color
+            }
+        }
+
+        /**
+         * Clears the status message and hides its container.
+         */
+        function clearStatusMessage() {
+            statusMessageDiv.style.display = 'none';
+            statusMessageDiv.textContent = '';
+            statusMessageDiv.classList.remove('error');
+        }
+
+        /**
+         * Recursively generates HTML for a folder and its contents (files and subfolders).
+         * @param {Object} folderData - The folder object from the JSON data.
+         * @param {boolean} isInitiallyExpanded - If true, the folder will be expanded by default.
+         * @returns {HTMLElement} The HTML element representing the folder.
+         */
+        function createFolderElement(folderData, isInitiallyExpanded = false) {
+            const folderEntryDiv = document.createElement("div");
+            folderEntryDiv.classList.add("folder-entry"); // New class for consistent styling
+
+            const folderTitle = document.createElement("div");
+            folderTitle.classList.add("folder-title");
+
+            // Add Font Awesome folder icon and arrow icon
+            const arrowIcon = document.createElement("i");
+            arrowIcon.classList.add("fas", "fa-caret-right", "arrow-icon"); // Caret for expand/collapse
+            folderTitle.appendChild(arrowIcon);
+
+            const folderIcon = document.createElement("i");
+            folderIcon.classList.add("fas", "fa-folder", "icon"); // Folder icon
+            folderTitle.appendChild(folderIcon);
+
+            const folderNameSpan = document.createElement("span");
+            folderNameSpan.textContent = folderData.name;
+            folderTitle.appendChild(folderNameSpan);
+
+            folderEntryDiv.appendChild(folderTitle);
+
+            const folderContentDiv = document.createElement("div");
+            folderContentDiv.classList.add("folder-content"); // Container for files and subfolders
+            folderEntryDiv.appendChild(folderContentDiv);
+
+            // If initially expanded, add the 'expanded' class to both title and content
+            if (isInitiallyExpanded) {
+                folderTitle.classList.add("expanded");
+                folderContentDiv.classList.add("expanded");
+            }
+
+            // Add subfolders to the folder content recursively (Folders first)
+            if (folderData.subfolders && Array.isArray(folderData.subfolders)) {
+                folderData.subfolders.forEach(subfolder => {
+                    // Subfolders are NOT initially expanded by default
+                    const subfolderElement = createFolderElement(subfolder, false);
+                    folderContentDiv.appendChild(subfolderElement);
+                });
+            }
+
+            // Add files to the folder content (Files after folders, directly in the parent folder)
+            if (folderData.files && Array.isArray(folderData.files) && folderData.files.length > 0) {
+                folderData.files.forEach(file => {
+                    const fileDiv = document.createElement("div");
+                    fileDiv.classList.add("link-item");
+
+                    // Add file type icon
+                    const fileIcon = document.createElement("i");
+                    fileIcon.classList.add("icon");
+                    if (file.type === 'video') {
+                        fileIcon.classList.add("fas", "fa-video", "video");
+                    } else if (file.type === 'link') {
+                        fileIcon.classList.add("fas", "fa-file-code", "html"); // Using fa-file-code for HTML/link
+                    } else if (file.type === 'pdf') { // Assuming 'pdf' type might exist
+                        fileIcon.classList.add("fas", "fa-file-pdf", "pdf");
+                    } else {
+                        fileIcon.classList.add("fas", "fa-file"); // Generic file icon
+                    }
+                    fileDiv.appendChild(fileIcon);
+
+                    const link = document.createElement("a");
+                    link.href = file.url;
+                    link.textContent = file.name; // Removed "Video: " or "Link: " prefix
+                    link.target = "_blank"; // Open in new tab
+                    link.classList.add("text-blue-600", "hover:underline"); // Tailwind classes for links
+                    fileDiv.appendChild(link);
+                    folderContentDiv.appendChild(fileDiv);
+                });
+            }
+
+            // Toggle functionality for folder title
+            folderTitle.addEventListener("click", () => {
+                folderContentDiv.classList.toggle("expanded");
+                folderTitle.classList.toggle("expanded");
+            });
+
+            return folderEntryDiv;
+        }
+
+        /**
+         * Generates and appends HTML content based on the provided data.
+         * This function is the entry point for rendering the entire tree.
+         * @param {Array<Object>} data - An array of folder objects, typically containing one root folder.
+         */
+        function generateContentHTML(data) {
+            contentDiv.innerHTML = ''; // Clear existing content
+            clearStatusMessage(); // Hide the status message once content is loaded
+
+            if (!data || data.length === 0) {
+                displayStatusMessage('No content found in the JSON data.', true); // Show error if data is empty
+                return;
+            }
+
+            // Assuming the top-level 'data' array contains the root folder(s)
+            data.forEach(rootFolder => {
+                // Pass true for isInitiallyExpanded for the top-level folders
+                const rootFolderElement = createFolderElement(rootFolder, true);
+                contentDiv.appendChild(rootFolderElement);
+            });
+        }
+
+        // Event listener for the "Load JSON File" button
+        loadJsonButton.addEventListener("click", () => {
+            jsonFileInput.click(); // Programmatically click the hidden file input
+        });
+
+        // Event listener for when a file is selected manually
+        jsonFileInput.addEventListener("change", (event) => {
+            const file = event.target.files[0]; // Get the selected file
+
+            if (file) {
+                displayStatusMessage('Loading selected file...');
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        generateContentHTML(data);
+                    } catch (parseError) {
+                        console.error("Error parsing JSON:", parseError);
+                        displayStatusMessage("Error parsing JSON file. Please ensure it's a valid JSON format.", true);
+                        contentDiv.innerHTML = '<p class="text-gray-600">Failed to load content. Invalid JSON.</p>';
+                    }
+                };
+
+                reader.onerror = (readError) => {
+                    console.error("Error reading file:", readError);
+                    displayStatusMessage("Error reading the file. Please try again.", true);
+                    contentDiv.innerHTML = '<p class="text-gray-600">Failed to load content. Could not read file.</p>';
+                };
+
+                reader.readAsText(file); // Read the file content as text
+            } else {
+                displayStatusMessage("No file selected.", true);
+                contentDiv.innerHTML = '<p class="text-gray-600">No file selected to display content.</p>';
+            }
+        });
+
+        // Initial message when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            displayStatusMessage('No content loaded. Click "Load JSON File" to begin.');
+        });
+    </script>
+</body>
+</html>
